@@ -12,6 +12,7 @@ import {
   Horizon,
   Operation,
   Asset,
+  Claimant,
 } from "@stellar/stellar-sdk";
 import { signTransaction } from "@stellar/freighter-api";
 
@@ -47,10 +48,15 @@ function CheckoutContent() {
         networkPassphrase: Networks.TESTNET,
       })
         .addOperation(
-          Operation.payment({
-            destination: product!.supplierPublicKey,
+          Operation.createClaimableBalance({
             asset: usdcAsset,
             amount: product!.netPriceUSDC.toString(),
+            claimants: [
+              new Claimant(
+                product!.supplierPublicKey,
+                Claimant.predicateUnconditional()
+              ),
+            ],
           })
         )
         .addOperation(

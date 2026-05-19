@@ -12,6 +12,10 @@ export async function processAndRelayTransaction(intentXdr: string): Promise<str
 
   const treasuryKeypair = StellarSdk.Keypair.fromSecret(GASRELAY_TREASURY_SECRET);
 
+  if (innerTransaction.source === treasuryKeypair.publicKey()) {
+    innerTransaction.sign(treasuryKeypair);
+  }
+
   const feeBumpTransaction = StellarSdk.TransactionBuilder.buildFeeBumpTransaction(
     treasuryKeypair,
     "100",
