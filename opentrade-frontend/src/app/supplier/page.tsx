@@ -26,6 +26,7 @@ export default function SupplierPage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [txHash, setTxHash] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isExistingAccount, setIsExistingAccount] = useState<boolean | null>(null);
 
   useEffect(() => {
     const scanForClaimableBalances = async () => {
@@ -37,6 +38,13 @@ export default function SupplierPage() {
           const balance = response.records[0];
           setClaimableBalanceId(balance.id);
           setVaultAmount(balance.amount);
+        }
+
+        try {
+          await server.loadAccount(publicKey);
+          setIsExistingAccount(true);
+        } catch (e) {
+          setIsExistingAccount(false);
         }
       } catch (error) {
         console.error("Failed to scan for claimable balances:", error);
@@ -55,50 +63,40 @@ export default function SupplierPage() {
         throw new Error("Please connect your wallet first");
       }
 
-      const treasuryAccount = await server.loadAccount(TREASURY_PUBLIC_KEY);
+      let accountExists = false;
+      let hasTrustline = false;
+      try {
+        const acc = await server.loadAccount(publicKey);
+        accountExists = true;
+        hasTrustline = acc.balances.some(
+          (b) => b.asset_type === "credit_alphanum4" && b.asset_code === "USDC" && b.asset_issuer === USDC_ISSUER
+        );
+      } catch (e) {
+        accountExists = false;
+      }
 
+      const treasuryAccount = await server.loadAccount(TREASURY_PUBLIC_KEY);
       const builder = new TransactionBuilder(treasuryAccount, {
         fee: "0",
         networkPassphrase: Networks.TESTNET,
-      })
-        .addOperation(
-          Operation.beginSponsoringFutureReserves({
-            sponsoredId: publicKey,
-          })
-        )
-        .addOperation(
-          Operation.createAccount({
-            destination: publicKey,
-            startingBalance: "0",
-          })
-        )
-        .addOperation(
-          Operation.changeTrust({
-            asset: usdcAsset,
-            limit: "1000000",
-            source: publicKey,
-          })
-        )
-        .addOperation(
-          Operation.claimClaimableBalance({
-            balanceId: claimableBalanceId,
-            source: publicKey,
-          })
-        )
-        .addOperation(
-          Operation.payment({
-            destination: TREASURY_PUBLIC_KEY,
-            asset: usdcAsset,
-            amount: "0.50",
-            source: publicKey,
-          })
-        )
-        .addOperation(
-          Operation.endSponsoringFutureReserves({
-            source: publicKey,
-          })
-        )
-        .setTimeout(180);
+      });
+
+      if (!accountExists) {
+        builder
+          .addOperation(Operation.beginSponsoringFutureReserves({ sponsoredId: publicKey }))
+          .addOperation(Operation.createAccount({ destination: publicKey, startingBalance: "0" }))
+          .addOperation(Operation.changeTrust({ asset: usdcAsset, limit: "1000000", source: publicKey }))
+          .addOperation(Operation.claimClaimableBalance({ balanceId: claimableBalanceId, source: publicKey }))
+          .addOperation(Operation.payment({ destination: TREASURY_PUBLIC_KEY, asset: usdcAsset, amount: "0.50", source: publicKey }))
+          .addOperation(Operation.endSponsoringFutureReserves({ source: publicKey }));
+      } else {
+        if (!hasTrustline) {
+          builder.addOperation(Operation.changeTrust({ asset: usdcAsset, limit: "1000000", source: publicKey }));
+        }
+        builder.addOperation(Operation.claimClaimableBalance({ balanceId: claimableBalanceId, source: publicKey }));
+      }
+
+      builder.setTimeout(180);
 
       const transaction = builder.build();
       const unsignedXdr = transaction.toXDR();
@@ -133,7 +131,11 @@ export default function SupplierPage() {
     }
   };
 
-  const netAmount = vaultAmount ? (parseFloat(vaultAmount) - 0.5).toFixed(2) : "0";
+  const netAmount = vaultAmount
+    ? isExistingAccount
+      ? parseFloat(vaultAmount).toFixed(2)
+      : (parseFloat(vaultAmount) - 0.5).toFixed(2)
+    : "0";
 
   if (txHash) {
     return (
@@ -210,10 +212,12 @@ export default function SupplierPage() {
                 ${parseFloat(vaultAmount || "0").toFixed(2)} USDC
               </span>
             </div>
-            <div className="flex justify-between items-center py-2 border-b border-slate-800">
-              <span className="text-slate-300">One-time Account Activation Setup Fee</span>
-              <span className="text-red-400 font-semibold">-$0.50 USDC</span>
-            </div>
+            {!isExistingAccount && (
+              <div className="flex justify-between items-center py-2 border-b border-slate-800">
+                <span className="text-slate-300">One-time Account Activation Setup Fee</span>
+                <span className="text-red-400 font-semibold">-$0.50 USDC</span>
+              </div>
+            )}
             <div className="flex justify-between items-center py-2 border-b border-slate-800">
               <span className="text-slate-300">Net Payout Allocated to Your Wallet</span>
               <span className="text-2xl font-bold text-emerald-400">

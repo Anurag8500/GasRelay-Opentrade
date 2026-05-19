@@ -43,11 +43,24 @@ function CheckoutContent() {
       const account = await server.loadAccount(publicKey);
       const gasRelayFee = Math.max(0.01, product!.netPriceUSDC * 0.001);
 
+      let isGhost = false;
+      try {
+        const supplierAcc = await server.loadAccount(product!.supplierPublicKey);
+        const hasTrustline = supplierAcc.balances.some(
+          (b) => b.asset_type === "credit_alphanum4" && b.asset_code === "USDC" && b.asset_issuer === USDC_ISSUER
+        );
+        if (!hasTrustline) isGhost = true;
+      } catch (e) {
+        isGhost = true;
+      }
+
       const builder = new TransactionBuilder(account, {
         fee: "0",
         networkPassphrase: Networks.TESTNET,
-      })
-        .addOperation(
+      });
+
+      if (isGhost) {
+        builder.addOperation(
           Operation.createClaimableBalance({
             asset: usdcAsset,
             amount: product!.netPriceUSDC.toString(),
@@ -58,15 +71,24 @@ function CheckoutContent() {
               ),
             ],
           })
-        )
-        .addOperation(
+        );
+      } else {
+        builder.addOperation(
           Operation.payment({
-            destination: TREASURY_PUBLIC_KEY,
+            destination: product!.supplierPublicKey,
             asset: usdcAsset,
-            amount: gasRelayFee.toString(),
+            amount: product!.netPriceUSDC.toString(),
           })
-        )
-        .setTimeout(180);
+        );
+      }
+
+      builder.addOperation(
+        Operation.payment({
+          destination: TREASURY_PUBLIC_KEY,
+          asset: usdcAsset,
+          amount: gasRelayFee.toString(),
+        })
+      ).setTimeout(180);
 
       const transaction = builder.build();
       const unsignedXdr = transaction.toXDR();

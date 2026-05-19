@@ -12,9 +12,9 @@ export const MARKETPLACE_CATALOG: CommodityProduct[] = [
     id: "colombian-coffee",
     name: "Organic Colombian Coffee Beans",
     mass: "1 Ton",
-    netPriceUSDC: 4.00,
+    netPriceUSDC: 3.00,
     supplierName: "Juan's Coffee Co.",
-    supplierPublicKey: "GCJUAN7V2EXAMPLEKEYFORSTELLARTESTNET",
+    supplierPublicKey: "GDDV5TYFVD7JO2GPST667SDVDCFX5TQFRZLEFR5FQUUDSL44AU2X7J5C",
   },
   {
     id: "vietnamese-rice",
@@ -28,8 +28,8 @@ export const MARKETPLACE_CATALOG: CommodityProduct[] = [
     id: "refurbished-smartphones",
     name: "Bulk Refurbished Smartphones",
     mass: "100 Units",
-    netPriceUSDC: 3.00,
+    netPriceUSDC: 1.00,
     supplierName: "TechRecycle India",
-    supplierPublicKey: "GCTECH8K7QWEXAMPLEKEYFORSTELLARTESTNET",
+    supplierPublicKey: "GAC63MK3HUTQXRBYOZZGTFX3WAAWUWBW6KFNKERFROOAVH2IUFVAVYJG",
   },
 ];
