@@ -1,10 +1,11 @@
 "use client";
 
+import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { MARKETPLACE_CATALOG } from "@/data/catalog";
 import { motion } from "framer-motion";
 
-export default function CheckoutPage() {
+function CheckoutContent() {
   const searchParams = useSearchParams();
   const productId = searchParams.get("productId");
   const product = MARKETPLACE_CATALOG.find((p) => p.id === productId);
@@ -61,5 +62,13 @@ export default function CheckoutPage() {
         </button>
       </motion.div>
     </div>
+  );
+}
+
+export default function CheckoutPage() {
+  return (
+    <Suspense fallback={<div className="text-center py-20">Loading...</div>}>
+      <CheckoutContent />
+    </Suspense>
   );
 }

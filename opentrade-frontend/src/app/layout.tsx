@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import Link from "next/link";
 import "./globals.css";
+import { WalletProvider } from "@/context/WalletContext";
+import Navbar from "@/components/Navbar";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -29,34 +30,12 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-slate-950 text-slate-50">
-        <header className="sticky top-0 z-50 border-b border-slate-800 bg-slate-950/80 backdrop-blur-sm">
-          <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-            <Link href="/" className="flex items-center gap-2 font-bold text-xl">
-              <span>🛡️</span>
-              <span>OpenTrade</span>
-            </Link>
-            <nav className="flex items-center gap-8">
-              <Link
-                href="/"
-                className="text-slate-300 hover:text-white transition-colors font-medium"
-              >
-                Marketplace
-              </Link>
-              <Link
-                href="/supplier"
-                className="text-slate-300 hover:text-white transition-colors font-medium"
-              >
-                Supplier Portal
-              </Link>
-            </nav>
-            <button className="bg-blue-600 hover:bg-blue-700 px-6 py-2 rounded-lg font-semibold transition-colors">
-              Connect Wallet
-            </button>
-          </div>
-        </header>
-        <main className="flex-1 max-w-7xl mx-auto px-4 py-8 w-full">
-          {children}
-        </main>
+        <WalletProvider>
+          <Navbar />
+          <main className="flex-1 max-w-7xl mx-auto px-4 py-8 w-full">
+            {children}
+          </main>
+        </WalletProvider>
       </body>
     </html>
   );
