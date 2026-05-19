@@ -6,7 +6,10 @@ import { processAndRelayTransaction } from "./services/relayer";
 const fastify = Fastify({ logger: true });
 
 fastify.register(cors, {
-  origin: "http://localhost:3000",
+  origin: [
+    "http://localhost:3000",                     
+    "https://gasrelay-opentrade.vercel.app"   
+  ],
 });
 
 fastify.post<{ Body: { intentXdr: string } }>("/api/relay", async (request, reply) => {
