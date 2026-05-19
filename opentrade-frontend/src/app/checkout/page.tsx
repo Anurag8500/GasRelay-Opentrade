@@ -75,7 +75,7 @@ function CheckoutContent() {
         networkPassphrase: Networks.TESTNET,
       });
 
-      const response = await fetch("http://localhost:8080/api/relay", {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/relay`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
