@@ -1,14 +1,99 @@
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { MARKETPLACE_CATALOG } from "@/data/catalog";
 import { motion } from "framer-motion";
+import { useWallet } from "@/context/WalletContext";
+import {
+  TransactionBuilder,
+  Networks,
+  Horizon,
+  Operation,
+  Asset,
+} from "@stellar/stellar-sdk";
+import { signTransaction } from "@stellar/freighter-api";
+
+const USDC_ISSUER = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5";
+const TREASURY_PUBLIC_KEY = "GCRGPKMKAFRLN7X7IXV63QUFNLFD7F7RPFIEKZKBGUWRGECM6PK7VMRV";
+const usdcAsset = new Asset("USDC", USDC_ISSUER);
+const server = new Horizon.Server("https://horizon-testnet.stellar.org");
 
 function CheckoutContent() {
   const searchParams = useSearchParams();
   const productId = searchParams.get("productId");
   const product = MARKETPLACE_CATALOG.find((p) => p.id === productId);
+  const { isWalletConnected, publicKey } = useWallet();
+
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [txHash, setTxHash] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const handlePayment = async () => {
+    setIsProcessing(true);
+    setErrorMessage(null);
+
+    try {
+      if (!isWalletConnected || !publicKey) {
+        throw new Error("Please connect your wallet first");
+      }
+
+      const account = await server.loadAccount(publicKey);
+      const gasRelayFee = Math.max(0.01, product!.netPriceUSDC * 0.001);
+
+      const builder = new TransactionBuilder(account, {
+        fee: "0",
+        networkPassphrase: Networks.TESTNET,
+      })
+        .addOperation(
+          Operation.payment({
+            destination: product!.supplierPublicKey,
+            asset: usdcAsset,
+            amount: product!.netPriceUSDC.toString(),
+          })
+        )
+        .addOperation(
+          Operation.payment({
+            destination: TREASURY_PUBLIC_KEY,
+            asset: usdcAsset,
+            amount: gasRelayFee.toString(),
+          })
+        )
+        .setTimeout(180);
+
+      const transaction = builder.build();
+      const unsignedXdr = transaction.toXDR();
+
+      const { signedTxXdr } = await signTransaction(unsignedXdr, {
+        networkPassphrase: Networks.TESTNET,
+      });
+
+      const response = await fetch("http://localhost:8080/api/relay", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ intentXdr: signedTxXdr }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || "Transaction failed");
+      }
+
+      if (data.success) {
+        setTxHash(data.hash);
+      }
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error ? error.message : "An unexpected error occurred"
+      );
+    } finally {
+      setIsProcessing(false);
+    }
+  };
 
   if (!product) {
     return (
@@ -21,6 +106,37 @@ function CheckoutContent() {
 
   const gasRelayFee = Math.max(0.01, product.netPriceUSDC * 0.001);
   const totalBilled = product.netPriceUSDC + gasRelayFee;
+
+  if (txHash) {
+    return (
+      <div className="max-w-2xl mx-auto">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+          className="bg-emerald-900/20 border border-emerald-800/50 rounded-xl p-8"
+        >
+          <div className="flex items-center gap-2 mb-6">
+            <span className="text-2xl">✅</span>
+            <h2 className="text-2xl font-bold text-emerald-300">
+              Transaction Settled Gas-Free!
+            </h2>
+          </div>
+          <p className="text-emerald-200 mb-8">
+            Your commodity order has been successfully processed and paid for.
+          </p>
+          <Link
+            href={`https://stellar.expert/explorer/testnet/tx/${txHash}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block w-full bg-emerald-600 hover:bg-emerald-700 text-white py-4 rounded-lg font-bold text-lg transition-colors text-center"
+          >
+            View Transaction on Stellar Expert
+          </Link>
+        </motion.div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -57,8 +173,21 @@ function CheckoutContent() {
             </span>
           </div>
         </div>
-        <button className="w-full bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-lg font-bold text-lg transition-colors">
-          Confirm Payment
+        {errorMessage && (
+          <div className="bg-red-900/20 border border-red-800/50 rounded-lg p-4 mb-6">
+            <p className="text-red-400">{errorMessage}</p>
+          </div>
+        )}
+        <button
+          onClick={handlePayment}
+          disabled={isProcessing}
+          className={`w-full py-4 rounded-lg font-bold text-lg transition-colors ${
+            isProcessing
+              ? "bg-slate-700 text-slate-400 opacity-50 cursor-not-allowed"
+              : "bg-blue-600 hover:bg-blue-700 text-white"
+          }`}
+        >
+          {isProcessing ? "Awaiting Signature & Relaying..." : "Confirm Payment"}
         </button>
       </motion.div>
     </div>
